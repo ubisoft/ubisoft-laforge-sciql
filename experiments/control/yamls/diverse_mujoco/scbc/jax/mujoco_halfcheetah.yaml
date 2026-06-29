@@ -1,0 +1,126 @@
+#############
+# HYDRA CFG #
+#############
+
+# general
+#########
+experiment_dir: experiments_logs/${experiment_name}/logs/${task_cfg.task_name}/${algo_cfg.algo_name}/jax/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+# launches
+##########
+defaults:
+  - override hydra/launcher: submitit_slurm
+
+hydra:
+  run:
+    dir: ${experiment_dir}/${hydra:job.num}
+  
+  sweep:
+    dir: ${experiment_dir}
+    subdir: ${hydra:job.num}
+    
+log_dir: ${hydra:run.dir}
+verbose: True
+
+##################
+# EXPERIMENT CFG #
+##################
+
+# general
+#########
+seed: 0
+experiment_name: control
+
+# configuration of the task
+###########################
+dataset_type: fix
+task_cfg:
+  task_name: mujoco_halfcheetah-${dataset_type}
+  env:
+    classname: sciql.envs.diverse_mujoco.envs.DiverseMujoco_Environment
+    env_name: 'HalfCheetah-Mujoco'
+
+# configuration of the agent
+############################
+agent_cfg:
+  
+  agents_db:
+    classname: sciql.data.agents_db.jax.JaxAgentsDB
+    directory: ${log_dir}/agents_db
+  
+  agent:
+    classname: sciql.algorithms.jax.offline_rl.scbc.agents.SCBC_Agent
+    # Seeding
+    seed: ${seed}
+    # Architecture
+    hidden_dims: [256, 256]
+    # Optimization
+    actor_lr: 3e-4
+    opt_decay_schedule: True
+    batch_size: 256
+    style_embed_dim: 16
+    lc_encoder: 'embedding'
+    policy_max_steps: 1_000_000
+    policy_n_jitted_updates: 10
+    policy_jitted_sampling: True
+
+# configuration of the algorithm
+################################
+algo_cfg:
+
+  # Tree, ie. the expression that translates the preferences (within reward, joint_label, reward > joint_label and joint_label > reward)
+  tree: joint_label
+  # List of the labels, with their reading order giving their index
+  train_labels_names: [speed_label]
+
+  algo_name: scbc
+  log_interval: 1e3
+  seed: ${seed}
+  verbose: ${verbose}
+  eval_init: False
+  eval_interval: 1e6
+  save_interval: 1e6
+  jax_deterministic: False
+
+  trainer:
+    classname: sciql.algorithms.jax.offline_rl.scbc.trainers.SCBC_Trainer
+  
+  sampler:
+    classname: sciql.algorithms.jax.offline_rl.scbc.samplers.diverse_mujoco_samplers.DiverseMujoco_Sampler
+    episodes_db:
+      classname: sciql.data.episodes_db.diverse_mujoco.episodes_db.DiverseMujoco_EpisodesDB
+      dataset_dir: 'diverse_mujoco/${task_cfg.task_name}'
+    env: ${task_cfg.env}
+    labels: ${algo_cfg.train_labels_names}
+    # Data augmentation
+    clip_to_eps: True
+    eps: 1e-5
+    normalize_state: False
+    # Relabeling 
+    actor_p_curlabel: 0.0
+    actor_p_trajlabel: 1.0
+    actor_p_randomlabel: 0.0
+    actor_geom_lambda: 0.99
+    actor_dist_max: 1000
+    actor_geom_sample: False
+
+# configuration of the experiment
+##################################
+evaluations_cfg:
+
+  - classname: experiments.control.evaluations.Control_Evaluation
+    evaluation_cfg:
+      env: ${task_cfg.env}
+      task_name: ${task_cfg.task_name}
+      seed: ${seed}
+      n_episodes: 10
+      n_video_episodes: 0
+      video_path: ${log_dir}/logs/videos
+      agent_reset_args: {}
+      agent_eval_mode_args: {}
+      verbose: ${verbose}
+      render: False
+      statistics: []
+      eval_labels_names: ${algo_cfg.train_labels_names}
+      eval_labels_idxs: [null]
+      
