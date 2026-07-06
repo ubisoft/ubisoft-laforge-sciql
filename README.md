@@ -5,7 +5,7 @@
   <br>
   <h2>
     <a href="https://arxiv.org/pdf/2601.22823">Paper</a> |
-    <a href="https://sciql-iclr-2026.github.io/">Website</a>
+    <a href="https://mathieu-petitbois.github.io/projects/sciql/">Website</a>
   </h2>
 </div>
 
